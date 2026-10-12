@@ -105,6 +105,82 @@ def as_of_window(start_date: str, end_date: str, trade_date: str) -> tuple[str, 
     return f"{_parse(end) - span:%Y-%m-%d}", end
 
 
+def _idx_enabled(idx_mode: bool = False, config: dict | None = None) -> bool:
+    """Whether IDX routing is on: explicit flag, ``config['idx_mode']``, or run config."""
+    if config is not None:
+        try:
+            if bool(config.get("idx_mode")) or bool(idx_mode):
+                return True
+        except AttributeError:
+            if idx_mode:
+                return True
+        else:
+            if idx_mode:
+                return True
+            # Fall through to the run/process config so global idx_mode applies.
+    elif idx_mode:
+        return True
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        return bool(get_config().get("idx_mode", False))
+    except Exception:
+        return False
+
+
+def is_trading_day(day, idx_mode: bool = False, config: dict | None = None) -> bool:
+    """Trading-day check; IDX calendar when idx_mode is on, else Mon-Fri.
+
+    The US path has no holiday list here (unchanged behavior); IDX routing
+    goes through :mod:`tradingagents.dataflows.idx_calendar` via lazy import.
+    """
+    if _idx_enabled(idx_mode, config):
+        from tradingagents.dataflows import idx_calendar
+
+        return idx_calendar.is_trading_day(day)
+    try:
+        d = day.date() if isinstance(day, datetime) else date.fromisoformat(str(day)) if not isinstance(day, date) else day
+        return d.weekday() < 5
+    except (TypeError, ValueError):
+        return False
+
+
+def next_trading_day(day, idx_mode: bool = False, config: dict | None = None):
+    """Next trading day on or after ``day`` (YYYY-MM-DD)."""
+    from datetime import datetime as _dt
+
+    cursor = _dt.strptime(str(day), "%Y-%m-%d").date()
+    for _ in range(14):
+        if is_trading_day(cursor.isoformat(), idx_mode=idx_mode, config=config):
+            return cursor.isoformat()
+        cursor += timedelta(days=1)
+    return cursor.isoformat()
+
+
+def next_session(moment, idx_mode: bool = False, config: dict | None = None):
+    """Next IDX session when idx_mode is on, else the next weekday.
+
+    Returns a WIB-aware ``(start, end)`` pair in idx_mode (lazy import);
+    otherwise the next Mon-Fri date at midnight UTC. ``None`` only when no
+    session is found within the scan window.
+    """
+    if _idx_enabled(idx_mode, config):
+        from tradingagents.dataflows import idx_calendar
+
+        return idx_calendar.next_session(moment)
+    base = moment.date() if isinstance(moment, datetime) else _parse(str(moment)) or datetime.now(UTC)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=UTC)
+    for offset in range(14):
+        day = (base + timedelta(days=offset)).date()
+        if day.weekday() < 5:
+            start = datetime(day.year, day.month, day.day, tzinfo=UTC)
+            if offset == 0 and base > start:
+                continue
+            return (start, start)
+    return None
+
+
 def withhold_live_profile(as_of_date: str | None, label: str) -> str | None:
     """Notice to serve instead of a live-only company profile, or None to serve it.
 

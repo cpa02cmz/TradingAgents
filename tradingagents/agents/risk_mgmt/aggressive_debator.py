@@ -7,6 +7,27 @@ from tradingagents.agents.context import (
 )
 
 
+def _idx_note() -> str:
+    """IDX microstructure reminder, or '' when idx_mode is off (US unchanged)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        if not bool(get_config().get("idx_mode", False)):
+            return ""
+    except Exception:
+        return ""
+    return (
+        "\nIDX microstructure (idx_mode, prices in IDR): size in whole lots of "
+        "100 shares only — no fractional shares, round any sizing down to lots; "
+        "prices must sit on the IDX tick grid (<Rp200:Rp1, Rp200-<500:Rp2, "
+        "Rp500-<2000:Rp5, Rp2000-<5000:Rp10, >=Rp5000:Rp25); daily "
+        "auto-rejection bands around the previous close apply — ARA +35% "
+        "(Rp50-200), +25% (>Rp200-5000), +20% (>Rp5000), ARB -15% flat — and any "
+        "proposal outside [floor, ceiling] is auto-rejected, never executed; "
+        "no naked short selling."
+    )
+
+
 def create_aggressive_debator(llm):
     def aggressive_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
@@ -28,10 +49,12 @@ def create_aggressive_debator(llm):
         portfolio_context = get_portfolio_context_from_state(state)
 
         trader_decision = state["trader_investment_plan"]
+        idx_note = _idx_note()
 
         prompt = f"""As the Aggressive Risk Analyst, your role is to actively champion high-reward, high-risk opportunities, emphasizing bold strategies and competitive advantages. When evaluating the trader's decision or plan, focus intently on the potential upside, growth potential, and innovative benefits—even when these come with elevated risk. Use the provided market data and sentiment analysis to strengthen your arguments and challenge the opposing views. Specifically, respond directly to each point made by the conservative and neutral analysts, countering with data-driven rebuttals and persuasive reasoning. Highlight where their caution might miss critical opportunities or where their assumptions may be overly conservative. Here is the trader's decision:
 
 {trader_decision}
+{idx_note}
 
 Your task is to create a compelling case for the trader's decision by questioning and critiquing the conservative and neutral stances to demonstrate why your high-reward perspective offers the best path forward. Incorporate insights from the following sources into your arguments:
 

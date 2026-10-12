@@ -72,4 +72,14 @@ def get_config() -> dict:
     return deepcopy(_config)
 
 
+def is_idx_mode() -> bool:
+    """Whether the additive IDX layer is enabled (default off; US path unchanged)."""
+    return bool(get_config().get("idx_mode", False))
+
+
+def get_idx_universe() -> list:
+    """Configured IDX universe (subset of LQ45 by default; full list configurable)."""
+    return list(get_config().get("idx_universe", []))
+
+
 initialize_config()

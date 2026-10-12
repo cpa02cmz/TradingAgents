@@ -71,6 +71,10 @@ _ALIASES = {
 _HK_CODE = re.compile(r"^(\d{1,5})\.HK$")
 _SHANGHAI_SH = re.compile(r"^(\d{6})\.SH$")
 
+# IDX (Indonesia Stock Exchange) codes on Yahoo carry a ``.JK`` suffix
+# (``BBCA`` -> ``BBCA.JK``). Bare 4-letter codes are the common IDX shape.
+_IDX_BARE_CODE = re.compile(r"^[A-Z0-9]{4}$")
+
 
 # Crypto quote currencies that all map to Yahoo's USD pair. Yahoo lists only
 # ``<BASE>-USD`` (not the USDT/USDC stablecoin pairs), so a broker symbol quoted
@@ -150,6 +154,45 @@ def normalize_symbol(raw: str) -> str:
 # traversal, so the value never escapes a containing directory when
 # interpolated into a path. Anything else is rejected.
 _TICKER_PATH_RE = re.compile(r"^[A-Za-z0-9._\-\^=+]+$")
+
+
+def normalize_idx_symbol(raw: str, *, for_idx_native: bool = False) -> str:
+    """Map a user/broker IDX symbol to its canonical Yahoo ``.JK`` form.
+
+    - ``BBCA`` -> ``BBCA.JK`` (bare 4-letter codes auto-append ``.JK``).
+    - ``BBCA.JK`` / ``bbca.jk`` -> ``BBCA.JK`` (idempotent, case-insensitive).
+    - With ``for_idx_native=True``, strip the suffix for IDX-native calls:
+      ``BBCA.JK`` -> ``BBCA`` (the form idx.co.id endpoints expect).
+
+    Bare symbols that do not look like IDX codes (anything that is not a
+    4-character alphanumeric code and has no dot suffix) are returned
+    upper-cased unchanged, so non-IDX symbols are never mangled. Other
+    dotted suffixes (``.SS``, ``.HK``, ...) pass through unchanged.
+    Purely syntactic — no network calls.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return raw
+    s = raw.strip().upper().rstrip("+")
+    if for_idx_native:
+        if s.endswith(".JK"):
+            return s[: -len(".JK")]
+        return s
+    if "." not in s:
+        if _IDX_BARE_CODE.fullmatch(s):
+            return f"{s}.JK"
+        return s
+    if s.endswith(".JK"):
+        base = s[: -len(".JK")]
+        return f"{base}.JK"
+    return s
+
+
+__all__ = [
+    "crypto_base",
+    "normalize_idx_symbol",
+    "normalize_symbol",
+    "safe_ticker_component",
+]
 
 
 def safe_ticker_component(value: str, *, max_len: int = 32) -> str:

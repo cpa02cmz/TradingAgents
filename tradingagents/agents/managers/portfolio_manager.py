@@ -20,6 +20,26 @@ from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.structured import NO_EXTERNAL_TOOLS, bind_structured, invoke_structured
 
 
+def _idx_note() -> str:
+    """IDX sizing/risk guardrail, or '' when idx_mode is off (US unchanged)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        if not bool(get_config().get("idx_mode", False)):
+            return ""
+    except Exception:
+        return ""
+    return (
+        "\nIDX mode (prices in IDR): express any sizing in whole lots of 100 "
+        "shares — no fractional shares, round down to lots; keep limit prices on "
+        "the IDX tick grid (<Rp200:Rp1, Rp200-<500:Rp2, Rp500-<2000:Rp5, "
+        "Rp2000-<5000:Rp10, >=Rp5000:Rp25); respect daily auto-rejection bands "
+        "around the previous close — ARA +35% (Rp50-200), +25% (>Rp200-5000), "
+        "+20% (>Rp5000), ARB -15% flat — and treat anything outside "
+        "[floor, ceiling] as auto-rejected, never executed; no naked short selling."
+    )
+
+
 def create_portfolio_manager(llm):
     structured_llm = bind_structured(llm, PortfolioDecision, "Portfolio Manager")
 
@@ -38,6 +58,7 @@ def create_portfolio_manager(llm):
             if past_context
             else ""
         )
+        idx_note = _idx_note()
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
@@ -60,7 +81,7 @@ def create_portfolio_manager(llm):
 {lessons_line}
 **Risk Analysts Debate History:**
 {history}
-
+{idx_note}
 ---
 
 Ground every conclusion in specific evidence from the analysts. The risk debate always contains conflicting stances; deciding which is stronger is the job, so conflict alone is not a reason to Hold. Commit to the stronger case, sized by how decisively it wins. Choose Hold only when the evidence is still balanced after that weighing, or too thin to support a call; do not force a direction to appear decisive. Weigh the analysts on their merits, independent of speaking order.

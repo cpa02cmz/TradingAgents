@@ -31,11 +31,14 @@ from tradingagents.memory import TradingMemoryLog
 logger = logging.getLogger(__name__)
 
 
-def iter_grid(start_date: str, end_date: str, every_n_days: int = 1) -> list[str]:
+def iter_grid(start_date: str, end_date: str, every_n_days: int = 1,
+              idx_mode: bool = False, config: dict | None = None) -> list[str]:
     """Analysis dates from ``start_date``, never past today.
 
     A future date has no outcome to settle against, and the graph rejects one, so
     the grid stops at the present rather than producing cells that cannot score.
+    With ``idx_mode`` on, non-trading IDX days are skipped (lazy calendar
+    import); default off keeps US behavior unchanged.
     """
     start, end = _canonical(start_date), _canonical(end_date)
     if every_n_days < 1:
@@ -44,9 +47,24 @@ def iter_grid(start_date: str, end_date: str, every_n_days: int = 1) -> list[str
         raise ValueError(f"the grid ends before it starts: {end_date} is before {start_date}")
 
     last = min(end, datetime.strptime(get_current_date(), "%Y-%m-%d"))
+    use_idx = bool(idx_mode) or bool((config or {}).get("idx_mode", False))
+    if use_idx and config is None:
+        try:
+            from tradingagents.dataflows.config import get_config
+
+            use_idx = bool(get_config().get("idx_mode", False) or idx_mode)
+        except Exception:
+            pass
+    is_idx_day = None
+    if use_idx:
+        from tradingagents.dataflows import idx_calendar  # lazy
+
+        is_idx_day = idx_calendar.is_trading_day
     dates, cursor = [], start
     while cursor <= last:
-        dates.append(cursor.strftime("%Y-%m-%d"))
+        label = cursor.strftime("%Y-%m-%d")
+        if is_idx_day is None or is_idx_day(label):
+            dates.append(label)
         cursor += timedelta(days=every_n_days)
     return dates
 
@@ -212,3 +230,36 @@ def summarize(source: BacktestResult | str | Path) -> BacktestSummary:
                            pending=len(entries) - len(resolved) - unscored,
                            by_rating=by_rating, unscored=unscored,
                            holding=", ".join(sorted(windows)) or "the configured window")
+
+
+# --- IDX helpers (additive; no execution / order code) -------------------------
+def size_to_lots(cash: float, price: float, lot_size: int = 100) -> int:
+    """Max whole-lot shares affordable with ``cash`` at ``price`` (floor, IDR-safe).
+
+    Returns 0 when not even one lot is affordable. Pure sizing math; the
+    caller still validates the price against the tick grid and ARA/ARB band.
+    """
+    from tradingagents.dataflows import idx_calendar  # lazy
+
+    if price <= 0 or cash <= 0:
+        return 0
+    return idx_calendar.round_down_to_lot(int(cash // float(price)), lot_size)
+
+
+def validate_idx_order(*, price: float, prev_close: float, quantity: float,
+                       held_qty: float = 0.0, lot_size: int = 100) -> str | None:
+    """Auto-reject check for IDX backtest sizing; None passes, string rejects."""
+    from tradingagents.dataflows import idx_calendar  # lazy
+
+    return idx_calendar.validate_order(price=price, prev_close=prev_close,
+                                       quantity=quantity, held_qty=held_qty,
+                                       lot_size=lot_size)
+
+
+def format_idr_money(amount: float, currency: str | None = "IDR") -> str:
+    """IDR label for backtest summaries (Rp, no decimals)."""
+    from tradingagents.dataflows import idx_calendar  # lazy
+
+    label = idx_calendar.format_idr(amount)
+    cur = (currency or "").strip()
+    return label if not cur or cur.upper() == "IDR" else f"{label} {cur}"

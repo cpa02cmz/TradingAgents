@@ -22,6 +22,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
+    "TRADINGAGENTS_IDX_MODE":           "idx_mode",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
     "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
@@ -179,6 +180,20 @@ def build_default_config() -> dict:
         # measured, for reflection and for the backtest figures.
         "holding_period_days": 5,
         "benchmark_ticker": None,
+        # IDX (Indonesia) mode: when True, calendar, sizing and risk math use
+        # IDX microstructure (WIB sessions, 100-share lots, Rp tick grid,
+        # ARA/ARB auto-rejection bands). Default off: US behavior unchanged.
+        "idx_mode": False,
+        "idx_currency": "IDR",
+        "idx_lot_size": 100,
+        "idx_timezone": "Asia/Jakarta",
+        # Tick grid as [exclusive upper bound, tick in Rp]; None bound = open.
+        "idx_tick_table": [[200, 1], [500, 2], [2000, 5], [5000, 10], [None, 25]],
+        # ARA caps by previous close; ARB is a flat 15% below previous close.
+        "idx_ara_pct_low": 0.35,   # prev Rp50-200
+        "idx_ara_pct_mid": 0.25,   # prev >200-5000
+        "idx_ara_pct_high": 0.20,  # prev >5000
+        "idx_arb_pct": 0.15,
         "benchmark_map": {
             ".NS":  "^NSEI",       # NSE India (Nifty 50)
             ".BO":  "^BSESN",      # BSE India (Sensex)

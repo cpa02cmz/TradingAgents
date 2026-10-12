@@ -71,6 +71,26 @@ def _stocktwits_symbol(ticker: str) -> str:
     return f"{base}.X" if base else ticker.strip().upper()
 
 
+def _is_idx_mode() -> bool:
+    """True when the run opted into the IDX stack (config/env only; no state here)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        config = get_config() or {}
+        if isinstance(config, dict) and "idx_mode" in config:
+            return bool(config.get("idx_mode"))
+        import os
+
+        return os.getenv("TRADINGAGENTS_IDX_MODE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+    except Exception:  # noqa: BLE001 — fail closed to the US stack
+        return False
+
+
 def fetch_stocktwits_messages(
     ticker: str,
     limit: int = 30,
@@ -94,6 +114,12 @@ def fetch_stocktwits_messages(
     symbol has no messages, or the response shape is unexpected — the
     caller never has to special-case None or exceptions.
     """
+    if _is_idx_mode():
+        return (
+            "<stocktwits disabled in IDX mode: US retail cashtag stream has no "
+            "coverage of IDX tickers; IDX sentiment uses Bahasa Indonesia news "
+            "plus bandarmology instead>"
+        )
     url = _API.format(ticker=_stocktwits_symbol(ticker))
     req = Request(url, headers={"User-Agent": _UA, "Accept": "application/json"})
     try:

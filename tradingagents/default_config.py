@@ -31,6 +31,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_GOOGLE_THINKING_LEVEL":   "google_thinking_level",
     "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
     "TRADINGAGENTS_ANTHROPIC_EFFORT":        "anthropic_effort",
+    "TRADINGAGENTS_IDX_MODE":               "idx_mode",
 }
 
 
@@ -129,6 +130,13 @@ def build_default_config() -> dict:
         # Output language for analyst reports and final decision
         # Internal agent debate stays in English for reasoning quality
         "output_language": "English",
+        # IDX (Indonesia) mode: when True, the sentiment/fundamentals stack
+        # uses Bahasa Indonesia news (Kontan / Bisnis Indonesia / CNBC
+        # Indonesia), IDX Keterbukaan Informasi disclosures, and bandarmology
+        # flow signals; the US-only vendors (Reddit, StockTwits, SEC EDGAR)
+        # degrade to disabled-with-reason. Additive: False keeps every US
+        # path exactly as before.
+        "idx_mode": False,
         # Debate and discussion settings
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,

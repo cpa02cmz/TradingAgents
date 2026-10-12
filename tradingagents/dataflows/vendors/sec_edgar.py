@@ -33,6 +33,32 @@ from tradingagents.dataflows.files import replace_file
 
 logger = logging.getLogger(__name__)
 
+
+def _is_idx_mode() -> bool:
+    """True when the run opted into the IDX stack (config/env only; no state here)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        config = get_config() or {}
+        if isinstance(config, dict) and "idx_mode" in config:
+            return bool(config.get("idx_mode"))
+        import os
+
+        return os.getenv("TRADINGAGENTS_IDX_MODE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+    except Exception:  # noqa: BLE001 — fail closed to the US stack
+        return False
+
+
+_IDX_DISABLED = (
+    "<SEC EDGAR disabled in IDX mode: US-only filer coverage; IDX "
+    "fundamentals use Keterbukaan Informasi disclosures instead>"
+)
+
 _TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 _FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 
@@ -134,6 +160,8 @@ def _cached_json(url: str, name: str) -> dict:
 
 def cik_for(ticker: str) -> str | None:
     """The filer's CIK, or None when the ticker is not a US filer."""
+    if _is_idx_mode():
+        return None  # IDX mode: EDGAR has no IDX coverage; fall through to IDX vendors
     table = _cached_json(_TICKERS_URL, "company_tickers.json")
     wanted = ticker.strip().upper()
     for entry in table.values():
@@ -239,6 +267,8 @@ def _statement(kind: str, ticker: str, freq: str, as_of_date: str, title: str) -
 
 def get_balance_sheet(ticker: str, freq: str = "quarterly", as_of_date: str | None = None) -> str:
     """Balance sheet as filed on or before ``as_of_date``."""
+    if _is_idx_mode():
+        return _IDX_DISABLED
     return _statement("balance_sheet", ticker, freq, as_of_date, "Balance Sheet")
 
 
@@ -249,9 +279,13 @@ def get_income_statement(ticker: str, freq: str = "quarterly", as_of_date: str |
     figure, and subtracting three separately filed quarters would invent a number
     with no filing date behind it.
     """
+    if _is_idx_mode():
+        return _IDX_DISABLED
     return _statement("income_statement", ticker, freq, as_of_date, "Income Statement")
 
 
 def get_cashflow(ticker: str, freq: str = "quarterly", as_of_date: str | None = None) -> str:
     """Cash flow statement as filed on or before ``as_of_date``."""
+    if _is_idx_mode():
+        return _IDX_DISABLED
     return _statement("cashflow", ticker, freq, as_of_date, "Cash Flow Statement")

@@ -34,6 +34,72 @@ def get_language_instruction() -> str:
     )
 
 
+def is_idx_mode() -> bool:
+    """Whether IDX (Indonesia) prompt localization is enabled.
+
+    Lazy-reads the run config so importing this module never touches
+    global state; returns False when the key is absent (US default).
+    """
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        return bool(get_config().get("idx_mode", False))
+    except Exception:
+        return False
+
+
+def _idx_prompt_note() -> str:
+    """IDX context block appended to agent prompts when ``idx_mode`` is on.
+
+    Returns ``""`` when the flag is off, so US prompts stay byte-identical.
+    When on, localizes the analysis: IHSG benchmark (not S&P 500), IDR
+    currency with lot units (no $/share), ARA/ARB + lot-100 + tick rules,
+    BUMN/policy risk, and BI-Rate + IDR/USD + coal/CPO betas.
+    """
+    if not is_idx_mode():
+        return ""
+    return (
+        " IDX market context (Indonesia): benchmark against IHSG (^JKSE), not the S&P 500;"
+        " express all prices and valuations in IDR with lot units (1 lot = 100 shares; never $/share);"
+        " respect ARA/ARB auto-rejection limits, the lot-100 board lot, and IDX tick-size rules;"
+        " weigh BUMN/state-ownership and OJK/IDX policy/regulatory risk;"
+        " condition macro reads on the BI-Rate, IDR/USD, and coal/CPO betas."
+        " This run is signals-only research, not an order."
+    )
+
+
+OJK_SIGNALS_ONLY_MESSAGE = (
+    "Live order execution is disabled (signals-only mode, OJK compliance): "
+    "this system produces research signals only and never places orders. "
+    "Execute manually via your licensed broker app (e.g. your sekuritas app)."
+)
+
+
+def is_signals_only() -> bool:
+    """Whether live-order execution must be refused (signals-only mode)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        return bool(get_config().get("signals_only", False))
+    except Exception:
+        return False
+
+
+def guard_live_execution(action: str = "live order") -> None:
+    """Refuse any live-order/execution path while signals-only mode is on.
+
+    Paper-portfolio accounting stays fully working — only real execution is
+    refused. Raises ``RuntimeError`` with the OJK-compliance message so the
+    caller can surface it instead of placing the order.
+    """
+    if is_signals_only():
+        raise RuntimeError(f"{OJK_SIGNALS_ONLY_MESSAGE} Refused: {action}.")
+
+
+# Backwards-friendly alias: execution call sites read as an assertion.
+assert_signals_only_allows_live = guard_live_execution
+
+
 def opponent_argument_or_opening(text: str, opponent: str) -> str:
     """Opponent's latest argument, or an explicit opening marker when empty.
 
@@ -180,11 +246,11 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
     """
     context = state.get("instrument_context")
     if isinstance(context, str) and context.strip():
-        return context
+        return context + _idx_prompt_note()
     return build_instrument_context(
         str(state["company_of_interest"]),
         state.get("asset_type", "stock"),
-    )
+    ) + _idx_prompt_note()
 
 
 def report_or_absent(text: str, source: str) -> str:

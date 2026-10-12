@@ -22,6 +22,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
+    "TRADINGAGENTS_IDX_MODE":             "idx_mode",
+    "TRADINGAGENTS_SIGNALS_ONLY":         "signals_only",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
     "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
@@ -78,9 +80,9 @@ def build_default_config() -> dict:
     """The built-in defaults with the TRADINGAGENTS_* environment folded in.
 
     Read when the package is imported, as DEFAULT_CONFIG; call it again to see
-    the environment as it is now.
+    the     environment as it is now.
     """
-    return _apply_env_overrides({
+    config = _apply_env_overrides({
         "results_dir": os.getenv("TRADINGAGENTS_RESULTS_DIR") or os.path.join(_TRADINGAGENTS_HOME, "logs"),
         "data_cache_dir": os.getenv("TRADINGAGENTS_CACHE_DIR") or os.path.join(_TRADINGAGENTS_HOME, "cache"),
         "memory_log_path": os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH") or os.path.join(_TRADINGAGENTS_HOME, "memory", "trading_memory.md"),
@@ -179,7 +181,18 @@ def build_default_config() -> dict:
         # measured, for reflection and for the backtest figures.
         "holding_period_days": 5,
         "benchmark_ticker": None,
+        # IDX (Indonesia) localization, additive behind ``idx_mode`` (default
+        # False, so US behavior is unchanged). When True: prompts gain the IDX
+        # context block (see agents.context._idx_prompt_note), the CLI offers
+        # the LQ45/IDX30/IHSG universe (.JK symbols), and the benchmark
+        # defaults to IHSG (^JKSE). ``signals_only`` defaults ON under idx_mode
+        # (OJK compliance: research signals only, manual execution via a
+        # licensed broker app); paper-portfolio accounting keeps working.
+        "idx_mode": False,
+        "signals_only": False,
+        "idx_benchmark_ticker": "^JKSE",
         "benchmark_map": {
+            ".JK":  "^JKSE",       # Indonesia (IHSG / IDX Composite)
             ".NS":  "^NSEI",       # NSE India (Nifty 50)
             ".BO":  "^BSESN",      # BSE India (Sensex)
             ".T":   "^N225",       # Tokyo (Nikkei 225)
@@ -204,6 +217,16 @@ def build_default_config() -> dict:
         },
 
     })
+    if config.get("idx_mode"):
+        # signals_only defaults ON under idx_mode unless explicitly set
+        # (explicit False is respected); US default stays OFF.
+        if os.environ.get("TRADINGAGENTS_SIGNALS_ONLY") in (None, ""):
+            config["signals_only"] = True
+        # IDX benchmark defaults to IHSG unless explicitly overridden.
+        if os.environ.get("TRADINGAGENTS_BENCHMARK_TICKER") in (None, ""):
+            if not config.get("benchmark_ticker"):
+                config["benchmark_ticker"] = config.get("idx_benchmark_ticker", "^JKSE")
+    return config
 
 
 DEFAULT_CONFIG = build_default_config()

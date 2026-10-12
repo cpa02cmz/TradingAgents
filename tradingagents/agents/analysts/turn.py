@@ -4,6 +4,8 @@ import json
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from tradingagents.agents.context import _idx_prompt_note
+
 WRAP_UP = (
     "You have used every tool round this report allows. Write your final report "
     "now from the tool results above, and say which data you could not retrieve."
@@ -17,13 +19,17 @@ def take_turn(prompt, llm, tools, messages):
     whatever it is told. Its earlier calls and their results reach it as text,
     since a provider may refuse a history holding tool calls when none are bound.
     """
+    # IDX mode: reinforce the shared IDX context block as the last human
+    # message. Empty (no-op) when idx_mode is off, so US runs are unchanged.
+    idx_note = _idx_prompt_note()
+    extra = [HumanMessage(content=idx_note)] if idx_note else []
     if messages and isinstance(messages[-1], HumanMessage) and messages[-1].content == WRAP_UP:
         # The prompt lists the tools it offers; a model told of tools it cannot
         # call may still try, and some providers then answer with nothing.
         prompt = prompt.partial(tool_names="none; your tool rounds are spent")
-        result = (prompt | llm).invoke(_as_text(messages))
+        result = (prompt | llm).invoke(_as_text(list(messages) + extra))
         return result, result.content
-    result = (prompt | llm.bind_tools(tools)).invoke(messages)
+    result = (prompt | llm.bind_tools(tools)).invoke(list(messages) + extra)
     return result, "" if result.tool_calls else result.content
 
 

@@ -724,3 +724,93 @@ def ask_output_language(default=None) -> str:
         ).ask() or "").strip() or "English"
 
     return choice
+
+
+# --- IDX (Indonesia) universe + benchmark, additive behind idx_mode. ---
+#
+# .JK symbols (Yahoo Finance Indonesia). US behavior is unchanged when
+# idx_mode is off: nothing here is consulted on the default path.
+
+IDX_BENCHMARK = "^JKSE"
+US_BENCHMARK = "SPY"
+
+IDX_UNIVERSES: dict[str, list[str]] = {
+    "LQ45": [
+        "BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "TLKM.JK",
+        "ASII.JK", "UNVR.JK", "INDF.JK", "ICBP.JK", "SMGR.JK",
+        "INTP.JK", "KLBF.JK", "GGRM.JK", "ADRO.JK", "UNTR.JK",
+    ],
+    "IDX30": [
+        "BBCA.JK", "BBRI.JK", "BMRI.JK", "TLKM.JK", "ASII.JK",
+        "UNTR.JK", "INDF.JK", "ICBP.JK", "SMGR.JK", "KLBF.JK",
+    ],
+    "IHSG-picks": [
+        "BBCA.JK", "BBRI.JK", "GOTO.JK", "ARTO.JK", "BRIS.JK",
+        "AMMN.JK", "BRPT.JK", "INCO.JK", "ANTM.JK", "MDKA.JK",
+    ],
+}
+
+
+def list_idx_universes() -> list[str]:
+    """Universe names offered for IDX selection (LQ45/IDX30/IHSG-picks)."""
+    return list(IDX_UNIVERSES)
+
+
+def get_idx_universe_symbols(name: str) -> list[str]:
+    """The .JK symbols for an IDX universe; unknown names raise ValueError."""
+    key = (name or "").strip()
+    if key not in IDX_UNIVERSES:
+        raise ValueError(f"unknown IDX universe {name!r}; choose from {', '.join(IDX_UNIVERSES)}")
+    return list(IDX_UNIVERSES[key])
+
+
+def is_idx_ticker(ticker: str) -> bool:
+    """Whether a symbol belongs to the IDX (.JK) universe."""
+    return isinstance(ticker, str) and ticker.strip().upper().endswith(".JK")
+
+
+def get_benchmark_display(idx_mode: bool = False) -> str:
+    """Benchmark label shown in the CLI: ^JKSE (IHSG) for IDX, SPY for the US."""
+    return IDX_BENCHMARK if idx_mode else US_BENCHMARK
+
+
+def select_idx_universe(default: str | None = None) -> str:
+    """Interactively pick an IDX universe; returns its name."""
+    choice = questionary.select(
+        "Select IDX Universe:",
+        choices=[
+            questionary.Choice(f"{name} ({len(syms)} tickers)", value=name)
+            for name, syms in IDX_UNIVERSES.items()
+        ],
+        default=next((n for n in IDX_UNIVERSES if n == default), None),
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style([
+            ("selected", "fg:yellow noinherit"),
+            ("highlighted", "fg:yellow noinherit"),
+            ("pointer", "fg:yellow noinherit"),
+        ]),
+    ).ask()
+    if choice is None:
+        console.print("\n[red]No IDX universe selected. Exiting...[/red]")
+        exit(1)
+    return choice
+
+
+def select_idx_ticker(universe: str, default: str | None = None) -> str:
+    """Interactively pick a .JK ticker from an IDX universe."""
+    symbols = get_idx_universe_symbols(universe)
+    choice = questionary.select(
+        f"Select ticker from {universe}:",
+        choices=[questionary.Choice(sym, value=sym) for sym in symbols],
+        default=next((s for s in symbols if s == (default or "").upper()), None),
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style([
+            ("selected", "fg:green noinherit"),
+            ("highlighted", "fg:green noinherit"),
+            ("pointer", "fg:green noinherit"),
+        ]),
+    ).ask()
+    if choice is None:
+        console.print("\n[red]No ticker selected. Exiting...[/red]")
+        exit(1)
+    return choice

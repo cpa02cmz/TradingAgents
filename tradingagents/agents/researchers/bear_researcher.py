@@ -1,4 +1,5 @@
 from tradingagents.agents.context import (
+    _idx_prompt_note,
     get_instrument_context_from_state,
     get_language_instruction,
     opponent_argument_or_opening,
@@ -48,7 +49,7 @@ Latest world affairs news: {news_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the {target_label}.
-""" + get_language_instruction()
+""" + get_language_instruction() + _idx_prompt_note()
 
         response = llm.invoke(prompt)
 

@@ -153,6 +153,22 @@ def _prompt_selections(prefs, flags):
     if flags.get("ticker") is not None:
         selected_ticker = _from_flag(parse_ticker, flags["ticker"])
         console.print(f"[green]✓ Ticker from --ticker:[/green] {selected_ticker}")
+    elif DEFAULT_CONFIG.get("idx_mode"):
+        # IDX mode: offer the LQ45/IDX30/IHSG-picks universe (.JK symbols) and
+        # show the IHSG benchmark. Lazy imports keep the US path untouched.
+        from cli.prompts import get_benchmark_display, select_idx_ticker, select_idx_universe
+
+        console.print(f"[dim]Benchmark: {get_benchmark_display(True)} (IHSG)[/dim]")
+        console.print(
+            create_question_box(
+                "Step 1: IDX Universe & Ticker",
+                "Pick an IDX universe (LQ45/IDX30/IHSG-picks), then a .JK ticker",
+                "LQ45",
+            )
+        )
+        idx_universe = select_idx_universe(prefs.get("idx_universe"))
+        selected_ticker = select_idx_ticker(idx_universe)
+        console.print(f"[green]✓ Ticker from IDX {idx_universe}:[/green] {selected_ticker}")
     else:
         console.print(
             create_question_box(

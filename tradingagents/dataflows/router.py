@@ -41,6 +41,24 @@ from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance,
 
 logger = logging.getLogger(__name__)
 
+
+def _yfinance_jk_stock_data(symbol, start_date, end_date):
+    """Lazy ``yfinance_jk`` chain entry: primary IDX price source (.JK via yfinance)."""
+    from tradingagents.dataflows.vendors.idx import (  # lazy: keep router import light
+        get_yfinance_jk_stock_data,
+    )
+
+    return get_yfinance_jk_stock_data(symbol, start_date, end_date)
+
+
+def _idx_stock_data(symbol, start_date, end_date):
+    """Lazy ``idx`` chain entry: native idx.co.id fallback."""
+    from tradingagents.dataflows.vendors.idx import (  # lazy: keep router import light
+        get_stock_data as get_idx_stock_data,
+    )
+
+    return get_idx_stock_data(symbol, start_date, end_date)
+
 # Tools organized by category
 TOOLS_CATEGORIES = {
     "core_stock_apis": {
@@ -97,6 +115,8 @@ OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
 VENDOR_METHODS = {
     # core_stock_apis
     "get_stock_data": {
+        "yfinance_jk": _yfinance_jk_stock_data,
+        "idx": _idx_stock_data,
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
     },

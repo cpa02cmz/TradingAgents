@@ -156,7 +156,7 @@ def build_default_config() -> dict:
         # routed to vendors you didn't choose. For ordered fallback, list several,
         # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
         "data_vendors": {
-            "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
+            "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance, yfinance_jk, idx
             "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
             # Statements come from SEC EDGAR as filed (US filers), then Yahoo; the
         # overview and insider tools, which SEC EDGAR does not serve, from Yahoo.
@@ -165,6 +165,14 @@ def build_default_config() -> dict:
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
         },
+        # IDX (Indonesia) data layer — additive behind ``idx_mode`` (default off,
+        # US vendors keep working unchanged). ``yfinance_jk`` is the primary IDX
+        # price source (yfinance with .JK normalization); ``idx`` is the native
+        # idx.co.id fallback. Enable with e.g.
+        # {"data_vendors": {"core_stock_apis": "yfinance_jk,idx,yfinance"}}.
+        "idx_mode": False,
+        # IDX universe (subset of LQ45 shown; full list configurable here).
+        "idx_universe": ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO"],
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {
             # Example: "get_stock_data": "alpha_vantage",  # Override category default
@@ -200,6 +208,7 @@ def build_default_config() -> dict:
             ".SS":  "000001.SS",   # Shanghai (SSE Composite)
             ".SZ":  "399001.SZ",   # Shenzhen (SZSE Component)
             ".SA":  "^BVSP",       # B3 Brazil (Ibovespa)
+            ".JK":  "^JKSE",       # Indonesia (Jakarta Composite)
             "":     "SPY",         # default for US-listed tickers (no suffix)
         },
 

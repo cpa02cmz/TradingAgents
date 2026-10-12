@@ -245,6 +245,26 @@ def _fetch_subreddit_rss(
     return posts
 
 
+def _is_idx_mode() -> bool:
+    """True when the run opted into the IDX stack (config/env only; no state here)."""
+    try:
+        from tradingagents.dataflows.config import get_config
+
+        config = get_config() or {}
+        if isinstance(config, dict) and "idx_mode" in config:
+            return bool(config.get("idx_mode"))
+        import os
+
+        return os.getenv("TRADINGAGENTS_IDX_MODE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+    except Exception:  # noqa: BLE001 — fail closed to the US stack
+        return False
+
+
 def fetch_reddit_posts(
     ticker: str,
     subreddits: Iterable[str] | None = None,
@@ -272,6 +292,12 @@ def fetch_reddit_posts(
     flag per post and a note line that heads the block. It runs before the
     per-subreddit cut, so the posts it keeps fill the slots.
     """
+    if _is_idx_mode():
+        return (
+            "<Reddit disabled in IDX mode: US retail forums have no coverage of "
+            "IDX tickers; IDX sentiment uses Bahasa Indonesia news plus "
+            "bandarmology instead>"
+        )
     subreddits = list(subreddits or subreddits_for(ticker))
     # Crypto reaches us as a Yahoo pair (BTC-USD); search Reddit for the base
     # ("BTC") so the query actually matches discussion instead of near-nothing.
